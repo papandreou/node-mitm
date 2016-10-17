@@ -1,5 +1,9 @@
+## 1.3.1 (Sep 6, 2016)
+- Fixes calling `Socket.prototype.ref` and `Socket.prototype.unref` on the returned client and server sockets.  
+  Thanks, [Vincent Voyer](http://function.fr), for the help!
+
 ## 1.3.0 (Aug 17, 2016)
-- Adds compatibility with Node v6.4.
+- Adds compatibility with Node v6.4.  
   Thanks to [Andreas Lind](https://github.com/papandreou)!
 
 ## 1.2.1 (Mar 30, 2016)
