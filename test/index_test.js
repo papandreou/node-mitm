@@ -414,10 +414,6 @@ describe("Mitm", function() {
 
   function mustRequest(request) {
     describe("as request", function() {
-      beforeEach(function() { this.mitm.disable() })
-      beforeEach(function() { this.mitm = Mitm() })
-      afterEach(function() { this.mitm.disable() })
-
       it("must return ClientRequest", function() {
         request({host: "foo"}).must.be.an.instanceof(ClientRequest)
       })
@@ -520,7 +516,7 @@ describe("Mitm", function() {
           this.mitm.on("connect", function(client) { client.bypass() })
           var onRequest = Sinon.spy()
           this.mitm.on("request", onRequest)
-          request({host: "127.0.0.1"}).on("error", function(err) {
+          request({host: "127.0.0.1"}).on("error", function(_err) {
             onRequest.callCount.must.equal(0)
             done()
           })
@@ -530,6 +526,9 @@ describe("Mitm", function() {
   }
 
   describe("via Http.request", function() {
+    beforeEach(function() { this.mitm = Mitm() })
+    afterEach(function() { this.mitm.disable() })
+
     mustRequest(Http.request)
   })
 
@@ -550,12 +549,39 @@ describe("Mitm", function() {
   })
 
   describe("via Http.Agent", function() {
+    beforeEach(function() { this.mitm = Mitm() })
+    afterEach(function() { this.mitm.disable() })
+
     mustRequest(function(opts) {
       return Http.request(_.extend({agent: new Http.Agent}, opts))
+    })
+
+    it("must support keep-alive", function(done) {
+      var client = Http.request({
+        host: "foo",
+        agent: new Http.Agent({keepAlive: true})
+      })
+
+      client.end()
+
+      this.mitm.on("request", function(_req, res) {
+        res.setHeader("Connection", "keep-alive")
+        res.end()
+      })
+
+      // Just waiting for response is too early to trigger:
+      // TypeError: socket._handle.getAsyncId is not a function in _http_client.
+      client.on("response", function(res) {
+        res.on("data", noop)
+        res.on("end", done)
+      })
     })
   })
 
   describe("via Https.Agent", function() {
+    beforeEach(function() { this.mitm = Mitm() })
+    afterEach(function() { this.mitm.disable() })
+
     mustRequest(function(opts) {
       return Https.request(_.extend({agent: new Https.Agent}, opts))
     })
@@ -589,7 +615,7 @@ describe("Mitm", function() {
       var client = Http.request({host: "foo", method: "POST"})
       client.write("Hello")
 
-      this.mitm.on("request", function(req, res) {
+      this.mitm.on("request", function(req, _res) {
         req.setEncoding("utf8")
         req.on("data", function(data) { data.must.equal("Hello"); done() })
       })
@@ -607,7 +633,7 @@ describe("Mitm", function() {
     afterEach(function() { this.mitm.disable() })
 
     it("must respond with status, headers and body", function(done) {
-      this.mitm.on("request", function(req, res) {
+      this.mitm.on("request", function(_req, res) {
         res.statusCode = 442
         res.setHeader("Content-Type", "application/json")
         res.end("Hi!")
@@ -631,7 +657,7 @@ describe("Mitm", function() {
       it("must make clientRequest emit response", function(done) {
         var req = Http.request({host: "foo"})
         req.end()
-        this.mitm.on("request", function(req, res) { res.write("Test") })
+        this.mitm.on("request", function(_req, res) { res.write("Test") })
         req.on("response", done.bind(null, null))
       })
 
@@ -639,7 +665,7 @@ describe("Mitm", function() {
       // the callback can be called.
       it("must call given callback", function(done) {
         Http.request({host: "foo"}).end()
-        this.mitm.on("request", function(req, res) { res.write("Test", done) })
+        this.mitm.on("request", function(_req, res) { res.write("Test", done) })
       })
     })
 
@@ -647,7 +673,7 @@ describe("Mitm", function() {
       it("must make ClientRequest emit response", function(done) {
         var client = Http.request({host: "foo"})
         client.end()
-        this.mitm.on("request", function(req, res) { res.end() })
+        this.mitm.on("request", function(_req, res) { res.end() })
         client.on("response", done.bind(null, null))
       })
 
@@ -657,7 +683,7 @@ describe("Mitm", function() {
       it("must make IncomingMessage emit end", function(done) {
         var client = Http.request({host: "foo"})
         client.end()
-        this.mitm.on("request", function(req, res) { res.end() })
+        this.mitm.on("request", function(_req, res) { res.end() })
 
         client.on("response", function(res) {
           res.on("data", noop)
