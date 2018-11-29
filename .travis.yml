@@ -27,11 +27,20 @@ node_js:
   - "8"
   - "9.5"
 
-  # v9.5 revamped parts of HTTP parsing just like v8.12.
+  # v9.6 revamped parts of HTTP parsing just like v8.12.
   - "9.6"
   - "9"
   - "10.0.0"
   - "10"
+  - "11.0"
+
+  # v11.1 changed onStreamRead in stream_base_commons.js to get the byte count
+  # through a global structure.
+  - "11.1"
+
+  # v11.2 requires InternalSocket.prototype.shutdown.
+  - "11.2"
+  - "11"
 
   # IO.js required TlsSocket.prototype.getSession.
   - "iojs"
