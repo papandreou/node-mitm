@@ -1,3 +1,6 @@
+## 1.7.0 (Jan 30, 2019)
+- Adds compatibility with Node v10.15.1.
+
 ## 1.6.0 (Jan 26, 2019)
 - Adds compatibility with Node v11.8.
 
