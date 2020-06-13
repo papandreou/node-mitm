@@ -16,7 +16,7 @@ various responses to your code without ever having to hit the real network.
 **Fast as hell** and **a lot easier to develop with than external test
 servers**.
 
-Mitm.js works on all Node versions: ancient **v0.10**, **v0.11** and **v0.12** versions, previous and current LTS versions like **v4**, **v6** and **v8** and fresh **v10** and beyond. For all it has **automated tests** to ensure it will stay that way.
+Mitm.js works on all Node versions: ancient **v0.10**, **v0.11** and **v0.12** versions, previous and current LTS versions like **v4** to **v12** and the newest **v13** and beyond. For all it has **automated tests** to ensure it will stay that way.
 
 I've developed Mitm.js on a need-to basis for testing [Monday
 Calendar][monday]'s syncing, so if you find a use-case I haven't come across,
@@ -185,6 +185,9 @@ Please note that HTTPS requests are currently "morphed" into HTTP requests.
 That's to save us from having to set up certificates and disable their
 verification. But if you do need to test this, please ping me and we'll see if
 we can get Mitm.js to support that.
+
+#### Custom HTTP Methods
+Unfortunately because [Node.js's web server doesn't seem to support custom HTTP methods](https://github.com/nodejs/node-v0.x-archive/issues/3192) (that is, ones beyond `require("http").METHODS`), Mitm.js doesn't support them out of the box either. The Node.js HTTP parser throws an error given a request with an unsupported method. However, as Mitm.js also supports intercepting at the TCP level, you could hook in your own HTTP parser. I've briefly alluded to it in [issue #63](https://github.com/moll/node-mitm/issues/63).
 
 ### Bypassing interception
 You can bypass connections listening to the `connect` event on the Mitm instance

@@ -12,6 +12,7 @@ var ClientRequest = Http.ClientRequest
 var EventEmitter = require("events").EventEmitter
 var Mitm = require("..")
 var NODE_0_10 = Semver.satisfies(process.version, ">= 0.10 < 0.11")
+var newBuffer = Buffer.from || function(d, enc) { return new Buffer(d, enc) }
 
 describe("Mitm", function() {
   beforeEach(function() { Mitm.passthrough = false })
@@ -91,6 +92,24 @@ describe("Mitm", function() {
       it("must call back on connect given port, host and callback",
         function(done) {
         module.connect(80, "localhost", done.bind(null, null))
+      })
+
+      // The "close" event broke on Node v12.16.3 as the
+      // InternalSocket.prototype.close method didn't call back if
+      // the WritableStream had already been closed.
+      it("must emit close on socket if ended immediately", function(done) {
+        this.mitm.on("connection", function(socket) { socket.end() })
+        var socket = module.connect({host: "foo"})
+        socket.on("close", done.bind(null, null))
+      })
+
+      it("must emit close on socket if ended in next tick", function(done) {
+        this.mitm.on("connection", function(socket) {
+          process.nextTick(socket.end.bind(socket))
+        })
+
+        var socket = module.connect({host: "foo"})
+        socket.on("close", done.bind(null, null))
       })
 
       it("must intercept 127.0.0.1", function(done) {
@@ -198,10 +217,10 @@ describe("Mitm", function() {
         it("must write to client from server", function(done) {
           var server; this.mitm.on("connection", function(s) { server = s })
           var client = Net.connect({host: "foo"})
-          server.write("Hello")
+          server.write("Hello ☺️")
 
           client.setEncoding("utf8")
-          client.on("data", function(data) { data.must.equal("Hello") })
+          client.on("data", function(data) { data.must.equal("Hello ☺️") })
           client.on("data", done.bind(null, null))
         })
 
@@ -218,10 +237,10 @@ describe("Mitm", function() {
         it("must write to server from client", function(done) {
           var server; this.mitm.on("connection", function(s) { server = s })
           var client = Net.connect({host: "foo"})
-          client.write("Hello")
+          client.write("Hello ☺️")
 
           server.setEncoding("utf8")
-          process.nextTick(function() { server.read().must.equal("Hello") })
+          process.nextTick(function() { server.read().must.equal("Hello ☺️") })
           process.nextTick(done)
         })
 
@@ -263,11 +282,12 @@ describe("Mitm", function() {
         it("must write to server from client given a buffer", function(done) {
           var server; this.mitm.on("connection", function(s) { server = s })
           var client = Net.connect({host: "foo"})
-          client.write(new Buffer("Hello"))
+          client.write(newBuffer("Hello", "binary"))
 
-          server.setEncoding("utf8")
-          process.nextTick(function() { server.read().must.equal("Hello") })
-          process.nextTick(done)
+          process.nextTick(function() {
+            assertBuffers(server.read(), newBuffer("Hello", "binary"))
+            done()
+          })
         })
 
         it("must write to server from client given a UTF-8 string",
@@ -276,9 +296,10 @@ describe("Mitm", function() {
           var client = Net.connect({host: "foo"})
           client.write("Hello", "utf8")
 
-          server.setEncoding("utf8")
-          process.nextTick(function() { server.read().must.equal("Hello") })
-          process.nextTick(done)
+          process.nextTick(function() {
+            assertBuffers(server.read(), newBuffer("Hello", "binary"))
+            done()
+          })
         })
 
         it("must write to server from client given a ASCII string",
@@ -287,9 +308,10 @@ describe("Mitm", function() {
           var client = Net.connect({host: "foo"})
           client.write("Hello", "ascii")
 
-          server.setEncoding("utf8")
-          process.nextTick(function() { server.read().must.equal("Hello") })
-          process.nextTick(done)
+          process.nextTick(function() {
+            assertBuffers(server.read(), newBuffer("Hello", "binary"))
+            done()
+          })
         })
 
         it("must write to server from client given a UCS-2 string",
@@ -299,8 +321,11 @@ describe("Mitm", function() {
           client.write("Hello", "ucs2")
 
           process.nextTick(function() {
-            server.setEncoding("ucs2")
-            server.read().must.equal("H\u0000e\u0000l\u0000l\u0000o\u0000")
+            assertBuffers(
+              server.read(),
+              newBuffer("H\u0000e\u0000l\u0000l\u0000o\u0000", "binary")
+            )
+
             done()
           })
         })
@@ -743,6 +768,11 @@ Upcase.prototype = Object.create(Transform.prototype, {
 
 Upcase.prototype._transform = function(chunk, _enc, done) {
   done(null, String(chunk).toUpperCase())
+}
+
+function assertBuffers(a, b) {
+  if (a.equals) a.equals(b).must.be.true()
+  else a.toString("utf8").must.equal(b.toString("utf8"))
 }
 
 function noop() {}
