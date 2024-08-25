@@ -1,4 +1,3 @@
-var _ = require("underscore")
 var Net = require("net")
 var Tls = require("tls")
 var Http = require("http")
@@ -14,6 +13,7 @@ var slice = Function.call.bind(Array.prototype.slice)
 var normalizeConnectArgs = Net._normalizeConnectArgs || Net._normalizeArgs
 var createRequestAndResponse = Http._connectionListener
 var NODE_0_10 = Semver.satisfies(process.version, ">= 0.10 < 0.11")
+var NODE_GTE_19 = Semver.satisfies(process.version, ">= 19")
 module.exports = Mitm
 
 function Mitm() {
@@ -62,11 +62,16 @@ Mitm.prototype.enable = function() {
     this.stubs.stub(Http.globalAgent, "maxSockets", Infinity)
     this.stubs.stub(Https.globalAgent, "maxSockets", Infinity)
   }
+  else if (NODE_GTE_19) {
+    // Note v19 enables keep-alive for both the Http and Https globalAgents.
+    this.stubs.stub(Http.globalAgent, "keepAlive", false)
+    this.stubs.stub(Https.globalAgent, "keepAlive", false)
+  }
 
   // ClientRequest.prototype.onSocket is called synchronously from
   // ClientRequest's constructor and is a convenient place to hook into new
   // ClientRequests.
-  this.stubs.stub(ClientRequest.prototype, "onSocket", _.compose(
+  this.stubs.stub(ClientRequest.prototype, "onSocket", compose(
     ClientRequest.prototype.onSocket,
     this.request.bind(this)
   ))
@@ -84,7 +89,7 @@ Mitm.prototype.connect = function connect(orig, Socket, opts, done) {
   // Don't set client.connecting to false because there's nothing setting it
   // back to false later. Originally that was done in Socket.prototype.connect
   // and its afterConnect handler, but we're not calling that.
-  var client = new Socket(_.defaults({
+  var client = new Socket(defaults({
     handle: sockets[0],
 
     // Node v10 expects readable and writable to be set at Socket creation time.
@@ -158,11 +163,30 @@ Mitm.prototype.request = function request(socket) {
   var self = this
   if (NODE_0_10) {
     self = Object.create(this)
-    self.emit = _.compose(process.nextTick, Function.bind.bind(this.emit, this))
+    self.emit = compose(process.nextTick, Function.bind.bind(this.emit, this))
   }
 
   createRequestAndResponse.call(self, socket.serverSocket)
   return socket
+}
+
+function compose() {
+  var fns = arguments
+
+  return function() {
+    var args = arguments
+    for (var i = fns.length - 1; i >= 0; --i) args = [fns[i].apply(this, args)]
+    return args[0]
+  }
+}
+
+function defaults(target) {
+  if (target != null) for (var i = 1; i < arguments.length; ++i) {
+    var source = arguments[i]
+    for (var key in source) if (!(key in target)) target[key] = source[key]
+  }
+
+  return target
 }
 
 function addCrossReferences(req, res) { req.res = res; res.req = req }
